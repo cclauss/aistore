@@ -33,6 +33,7 @@ type txnServerCtx struct {
 	callerID   string
 	bck        *cluster.Bck
 	query      url.Values
+	t          *targetrunner
 }
 
 // verb /v1/txn
@@ -161,10 +162,7 @@ func (t *targetrunner) makeNCopies(c *txnServerCtx) error {
 
 		xaction.Registry.DoAbort(cmn.ActPutCopies, c.bck)
 
-		// notify
-		xact.AddNotif(&cmn.NotifXact{
-			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
-		})
+		c.addNotif(xact) // notify upon completion
 		go xact.Run()
 	default:
 		cmn.Assert(false)
@@ -234,12 +232,7 @@ func (t *targetrunner) setBucketProps(c *txnServerCtx) error {
 			}
 			xaction.Registry.DoAbort(cmn.ActPutCopies, c.bck)
 
-			// TODO -- FIXME: make it caller-controlled
-			// notify
-			xact.AddNotif(&cmn.NotifXact{
-				NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
-			})
-
+			c.addNotif(xact) // notify upon completion
 			go xact.Run()
 		}
 		if reECEncode(txnSetBprops.bprops, txnSetBprops.nprops, c.bck) {
@@ -248,11 +241,8 @@ func (t *targetrunner) setBucketProps(c *txnServerCtx) error {
 			if err != nil {
 				return err
 			}
-			// TODO -- FIXME: make it caller-controlled
-			// notify
-			xact.AddNotif(&cmn.NotifXact{
-				NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
-			})
+
+			c.addNotif(xact) // ditto
 			go xact.Run()
 		}
 	default:
@@ -360,10 +350,7 @@ func (t *targetrunner) renameBucket(c *txnServerCtx) error {
 			return err // ditto
 		}
 
-		// notify
-		xact.AddNotif(&cmn.NotifXact{
-			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
-		})
+		c.addNotif(xact) // notify upon completion
 
 		t.gfn.local.Activate()
 		t.gfn.global.activateTimed()
@@ -458,10 +445,8 @@ func (t *targetrunner) copyBucket(c *txnServerCtx) error {
 		if err != nil {
 			return err
 		}
-		// notify
-		xact.AddNotif(&cmn.NotifXact{
-			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
-		})
+
+		c.addNotif(xact) // notify upon completion
 		go xact.Run()
 	default:
 		cmn.Assert(false)
@@ -561,6 +546,7 @@ func (t *targetrunner) prepTxnServer(r *http.Request, msg *aisMsg, apiItems []st
 	c.smapVer = t.owner.smap.get().version()
 	c.bmdVer = t.owner.bmd.get().version()
 
+	c.t = t
 	return c, err
 }
 
@@ -577,12 +563,30 @@ func (t *targetrunner) coExists(bck *cluster.Bck, msg *aisMsg) (err error) {
 // notifications
 //
 
-func (t *targetrunner) xactCallerNotify(n cmn.Notif, err error) {
+func (c *txnServerCtx) addNotif(xact cmn.Xact) {
+	dsts := c.query[cmn.URLParamNotifyMe]
+	if len(dsts) == 0 {
+		return
+	}
+	// validate unless the dest is the caller
+	cmn.Assert(dsts[0] != "")
+	if dsts[0] != c.callerID {
+		smap := c.t.owner.smap.get()
+		if !smap.containsID(dsts[0]) {
+			glog.Errorf("%s: unknown notification dst %s, %s", c.t.si, dsts[0], smap) // TODO: handle
+		}
+	}
+	xact.AddNotif(&cmn.NotifXact{
+		NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: dsts, F: c.xactCallerNotify},
+	})
+}
+
+func (c *txnServerCtx) xactCallerNotify(n cmn.Notif, err error) {
 	var (
-		msg   = notifMsg{Ty: notifXact, Snode: t.si, Err: err}
+		msg   = notifMsg{Ty: notifXact, Snode: c.t.si, Err: err}
 		notif = n.(*cmn.NotifXact)
 		pid   = notif.Dsts[0]
 	)
 	msg.Data = cmn.MustMarshal(notif.Xact.Stats())
-	t.notify(pid, cmn.MustMarshal(&msg))
+	c.t.notify(pid, cmn.MustMarshal(&msg))
 }

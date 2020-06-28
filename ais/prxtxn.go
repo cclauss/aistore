@@ -198,6 +198,7 @@ func (p *proxyrunner) makeNCopies(msg *cmn.ActionMsg, bck *cluster.Bck) error {
 	wg.Wait()
 
 	// 5. start waiting for `finished` notifications
+	c.req.Query.Set(cmn.URLParamNotifyMe, p.si.ID())
 	nl := notifListenerBck{
 		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 	}
@@ -301,6 +302,7 @@ func (p *proxyrunner) setBucketProps(msg *cmn.ActionMsg, bck *cluster.Bck,
 
 	// 5. if remirror|re-EC|TBD-storage-svc: start waiting
 	if remirror || reec {
+		c.req.Query.Set(cmn.URLParamNotifyMe, p.si.ID())
 		nl := notifListenerBck{
 			notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 		}
@@ -411,6 +413,7 @@ func (p *proxyrunner) renameBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionM
 			_ = p.bcastPost(bcastArgs{req: c.req, smap: c.smap, timeout: cmn.LongTimeout})
 
 			// 6. start waiting for `finished` notifications
+			c.req.Query.Set(cmn.URLParamNotifyMe, p.si.ID())
 			nl := notifListenerFromTo{
 				notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckFromToCb},
 				nlpFrom:           &nlpFrom,
@@ -503,6 +506,7 @@ func (p *proxyrunner) copyBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionMsg
 	}
 
 	// 5. start waiting for `finished` notifications
+	c.req.Query.Set(cmn.URLParamNotifyMe, p.si.ID())
 	nl := notifListenerFromTo{
 		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCopy},
 		nlpFrom:           &nlpFrom,
@@ -606,6 +610,7 @@ func (p *proxyrunner) ecEncode(bck *cluster.Bck, msg *cmn.ActionMsg) error {
 	wg.Wait()
 
 	// 5. start waiting for `finished` notifications
+	c.req.Query.Set(cmn.URLParamNotifyMe, p.si.ID())
 	nl := notifListenerBck{
 		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 	}

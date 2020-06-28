@@ -198,10 +198,10 @@ const (
 
 	// 2PC transactions - control plane
 	URLParamTxnTimeout   = "txntout"  // transaction timeout
-	URLParamWaitMetasync = "txnwsync" // ATNI
+	URLParamWaitMetasync = "txnwsync" // wait for metasync (used only when there's an alternative)
 
-	// notifications
-	URLParamNotifyMe = "nfy" // notification destination
+	// notification target's node ID (usually, the node that initiates the operation)
+	URLParamNotifyMe = "nft"
 )
 
 // enum: task action (cmn.URLParamTaskAction)

@@ -199,7 +199,7 @@ func (p *proxyrunner) makeNCopies(msg *cmn.ActionMsg, bck *cluster.Bck) error {
 
 	// 5. start waiting for `finished` notifications
 	nl := notifListenerBck{
-		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBck}, nlp: &nlp,
+		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 	}
 	p.notifs.add(c.uuid, &nl)
 
@@ -302,7 +302,7 @@ func (p *proxyrunner) setBucketProps(msg *cmn.ActionMsg, bck *cluster.Bck,
 	// 5. if remirror|re-EC|TBD-storage-svc: start waiting
 	if remirror || reec {
 		nl := notifListenerBck{
-			notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBck}, nlp: &nlp,
+			notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 		}
 		p.notifs.add(c.uuid, &nl)
 		unlockUpon = true // unlock upon receiving target notifications
@@ -412,7 +412,7 @@ func (p *proxyrunner) renameBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionM
 
 			// 6. start waiting for `finished` notifications
 			nl := notifListenerFromTo{
-				notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckRen},
+				notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckFromToCb},
 				nlpFrom:           &nlpFrom,
 				nlpTo:             &nlpTo,
 			}
@@ -506,7 +506,7 @@ func (p *proxyrunner) copyBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionMsg
 
 	// 5. start waiting for `finished` notifications
 	nl := notifListenerFromTo{
-		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCp},
+		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCopy},
 		nlpFrom:           &nlpFrom,
 		nlpTo:             &nlpTo,
 	}
@@ -610,7 +610,7 @@ func (p *proxyrunner) ecEncode(bck *cluster.Bck, msg *cmn.ActionMsg) error {
 
 	// 5. start waiting for `finished` notifications
 	nl := notifListenerBck{
-		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckECEnc}, nlp: &nlp,
+		notifListenerBase: notifListenerBase{srcs: c.smap.Tmap.Clone(), f: p.nlBckCb}, nlp: &nlp,
 	}
 	p.notifs.add(c.uuid, &nl)
 
@@ -732,49 +732,31 @@ func (p *proxyrunner) makeNprops(bck *cluster.Bck,
 // notifications: listener-side callbacks
 //
 
-// copy-bucket done
-func (p *proxyrunner) nlBckCp(n notifListener, msg interface{}, uuid string, err error) {
+func (p *proxyrunner) _logNotifDone(n notifListener, msg interface{}, err error) {
+	if err != nil {
+		glog.Errorf("%s: %s failed, msg: %+v, err: %v", p.si, n, msg, err)
+	} else if glog.FastV(4, glog.SmoduleAIS) {
+		glog.Infof("%s: %s success", p.si, n)
+	}
+}
+
+// most basic notification callback: unlock bucket
+func (p *proxyrunner) nlBckCb(n notifListener, msg interface{}, uuid string, err error) {
+	nl := n.(*notifListenerBck)
+	nl.nlp.Unlock()
+	p._logNotifDone(n, msg, err)
+}
+
+func (p *proxyrunner) nlBckCopy(n notifListener, msg interface{}, uuid string, err error) {
 	nl := n.(*notifListenerFromTo)
 	nl.nlpTo.Unlock()
 	nl.nlpFrom.RUnlock()
-	if err != nil {
-		glog.Errorf("%s(%q): failed to copy bucket: %+v, err: %v", p.si, uuid, msg, err)
-	} else if glog.FastV(4, glog.SmoduleAIS) {
-		glog.Infof("%s(%q): %+v", p.si, uuid, msg)
-	}
+	p._logNotifDone(n, msg, err)
 }
 
-// rename-bucket done
-func (p *proxyrunner) nlBckRen(n notifListener, msg interface{}, uuid string, err error) {
+func (p *proxyrunner) nlBckFromToCb(n notifListener, msg interface{}, uuid string, err error) {
 	nl := n.(*notifListenerFromTo)
 	nl.nlpTo.Unlock()
 	nl.nlpFrom.Unlock()
-	if err != nil {
-		glog.Errorf("%s(%q): failed to rename bucket: %+v, err: %v", p.si, uuid, msg, err)
-	} else if glog.FastV(4, glog.SmoduleAIS) {
-		glog.Infof("%s(%q): %+v", p.si, uuid, msg)
-	}
-}
-
-// make-n-copies done
-func (p *proxyrunner) nlBck(n notifListener, msg interface{}, uuid string, err error) {
-	nl := n.(*notifListenerBck)
-	nl.nlp.Unlock()
-	if err != nil {
-		glog.Errorf("%s(%q): failed to make-n-copies: %+v, err: %v", p.si, uuid, msg, err)
-	} else if glog.FastV(4, glog.SmoduleAIS) {
-		glog.Infof("%s(%q): %+v", p.si, uuid, msg)
-	}
-}
-
-// ec-encode done
-func (p *proxyrunner) nlBckECEnc(n notifListener, msg interface{}, uuid string, err error) {
-	glog.Errorf("ECEncode notification received")
-	nl := n.(*notifListenerBck)
-	nl.nlp.Unlock()
-	if err != nil {
-		glog.Errorf("%s(%q): failed to ec-encode: %+v, err: %v", p.si, uuid, msg, err)
-	} else if glog.FastV(4, glog.SmoduleAIS) {
-		glog.Infof("%s(%q): %+v", p.si, uuid, msg)
-	}
+	p._logNotifDone(n, msg, err)
 }

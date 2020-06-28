@@ -740,21 +740,20 @@ func (p *proxyrunner) _logNotifDone(n notifListener, msg interface{}, err error)
 	}
 }
 
-// most basic notification callback: unlock bucket
-func (p *proxyrunner) nlBckCb(n notifListener, msg interface{}, uuid string, err error) {
+func (p *proxyrunner) nlBckCb(n notifListener, msg interface{}, err error) {
 	nl := n.(*notifListenerBck)
 	nl.nlp.Unlock()
 	p._logNotifDone(n, msg, err)
 }
 
-func (p *proxyrunner) nlBckCopy(n notifListener, msg interface{}, uuid string, err error) {
+func (p *proxyrunner) nlBckCopy(n notifListener, msg interface{}, err error) {
 	nl := n.(*notifListenerFromTo)
 	nl.nlpTo.Unlock()
 	nl.nlpFrom.RUnlock()
 	p._logNotifDone(n, msg, err)
 }
 
-func (p *proxyrunner) nlBckFromToCb(n notifListener, msg interface{}, uuid string, err error) {
+func (p *proxyrunner) nlBckFromToCb(n notifListener, msg interface{}, err error) {
 	nl := n.(*notifListenerFromTo)
 	nl.nlpTo.Unlock()
 	nl.nlpFrom.Unlock()

@@ -176,14 +176,15 @@ const (
 	URLParamAppendType   = "appendty"
 	URLParamAppendHandle = "handle"
 
-	URLParamUUID = "uuid" // action (operation, transaction, task) UUID
+	// action (operation, transaction, task) UUID
+	URLParamUUID = "uuid"
 
 	// dsort
 	URLParamTotalCompressedSize       = "tcs"
 	URLParamTotalInputShardsExtracted = "tise"
 	URLParamTotalUncompressedSize     = "tunc"
 
-	// downloader - FIXME: name collisions, consistency, usage beyond downloader
+	// downloader - TODO: review usage and naming
 	URLParamBucket            = "bucket"
 	URLParamLink              = "link"
 	URLParamObjName           = "objname"
@@ -195,9 +196,12 @@ const (
 	URLParamLimitConnections  = "limit_conn"
 	URLParamLimitBytesPerHour = "limit_bph"
 
-	// 2PC (control plane)
-	URLParamTxnTimeout = "txntout" // transaction timeout
-	URLParamTxnEvent   = "txnevnt" // enum { txnCommitEvent* }
+	// 2PC transactions - control plane
+	URLParamTxnTimeout   = "txntout"  // transaction timeout
+	URLParamWaitMetasync = "txnwsync" // ATNI
+
+	// notifications
+	URLParamNotifyMe = "nfy" // notification destination
 )
 
 // enum: task action (cmn.URLParamTaskAction)

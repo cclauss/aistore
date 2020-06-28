@@ -7,6 +7,7 @@ package ais
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -31,7 +32,7 @@ type txnServerCtx struct {
 	callerName string
 	callerID   string
 	bck        *cluster.Bck
-	event      string
+	query      url.Values
 }
 
 // verb /v1/txn
@@ -446,13 +447,11 @@ func (t *targetrunner) copyBucket(c *txnServerCtx) error {
 			return fmt.Errorf("%s %s: %v", t.si, txn, err)
 		}
 		txnCpBck := txn.(*txnCopyBucket)
-		if c.event == txnCommitEventMetasync {
-			// wait for metasync
+		if c.query.Get(cmn.URLParamWaitMetasync) != "" {
 			if err = t.transactions.wait(txn, c.timeout); err != nil {
 				return fmt.Errorf("%s %s: %v", t.si, txn, err)
 			}
 		} else {
-			cmn.Assert(c.event == txnCommitEventNone)
 			t.transactions.find(c.uuid, true /* remove */)
 		}
 		xact, err = xaction.Registry.RenewBckCopy(t, txnCpBck.bckFrom, txnCpBck.bckTo, c.uuid, cmn.ActCommit)
@@ -557,7 +556,7 @@ func (t *targetrunner) prepTxnServer(r *http.Request, msg *aisMsg, apiItems []st
 		return c, nil
 	}
 	c.timeout, err = cmn.S2Duration(query.Get(cmn.URLParamTxnTimeout))
-	c.event = query.Get(cmn.URLParamTxnEvent)
+	c.query = query // operation-specific values, if any
 
 	c.smapVer = t.owner.smap.get().version()
 	c.bmdVer = t.owner.bmd.get().version()

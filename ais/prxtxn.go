@@ -482,8 +482,6 @@ func (p *proxyrunner) copyBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionMsg
 	bprops, present := clone.Get(bckFrom)
 	cmn.Assert(present)
 
-	event := txnCommitEventNone
-
 	// create destination bucket but only if it doesn't exist
 	if _, present = clone.Get(bckTo); !present {
 		bckFrom.Props = bprops.Clone()
@@ -499,7 +497,7 @@ func (p *proxyrunner) copyBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionMsg
 
 		wg.Wait()
 
-		event = txnCommitEventMetasync
+		c.req.Query.Set(cmn.URLParamWaitMetasync, "true")
 	} else {
 		p.owner.bmd.Unlock()
 	}
@@ -515,7 +513,6 @@ func (p *proxyrunner) copyBucket(bckFrom, bckTo *cluster.Bck, msg *cmn.ActionMsg
 	// 6. commit
 	unlockUpon = true
 	c.req.Path = cmn.URLPath(c.path, cmn.ActCommit)
-	c.req.Query.Set(cmn.URLParamTxnEvent, event)
 	_ = p.bcastPost(bcastArgs{req: c.req, smap: c.smap, timeout: cmn.LongTimeout})
 
 	return

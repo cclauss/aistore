@@ -160,7 +160,7 @@ func (t *targetrunner) makeNCopies(c *txnServerCtx) error {
 
 		xaction.Registry.DoAbort(cmn.ActPutCopies, c.bck)
 
-		// ask this xaction to notify via F callback when finished
+		// notify
 		xact.AddNotif(&cmn.NotifXact{
 			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
 		})
@@ -232,6 +232,13 @@ func (t *targetrunner) setBucketProps(c *txnServerCtx) error {
 				return fmt.Errorf("%s %s: %v", t.si, txn, err)
 			}
 			xaction.Registry.DoAbort(cmn.ActPutCopies, c.bck)
+
+			// TODO -- FIXME: make it caller-controlled
+			// notify
+			xact.AddNotif(&cmn.NotifXact{
+				NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
+			})
+
 			go xact.Run()
 		}
 		if reECEncode(txnSetBprops.bprops, txnSetBprops.nprops, c.bck) {
@@ -240,6 +247,11 @@ func (t *targetrunner) setBucketProps(c *txnServerCtx) error {
 			if err != nil {
 				return err
 			}
+			// TODO -- FIXME: make it caller-controlled
+			// notify
+			xact.AddNotif(&cmn.NotifXact{
+				NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
+			})
 			go xact.Run()
 		}
 	default:
@@ -347,7 +359,7 @@ func (t *targetrunner) renameBucket(c *txnServerCtx) error {
 			return err // ditto
 		}
 
-		// ask this xaction to notify via F callback when finished
+		// notify
 		xact.AddNotif(&cmn.NotifXact{
 			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
 		})
@@ -447,7 +459,7 @@ func (t *targetrunner) copyBucket(c *txnServerCtx) error {
 		if err != nil {
 			return err
 		}
-		// ask this xaction to notify via F callback when finished
+		// notify
 		xact.AddNotif(&cmn.NotifXact{
 			NotifBase: cmn.NotifBase{When: cmn.UponTerm, Dsts: []string{c.callerID}, F: t.xactCallerNotify},
 		})

@@ -865,8 +865,11 @@ func (p *proxyrunner) httpbckpost(w http.ResponseWriter, r *http.Request) {
 			// make and validate nprops
 			bck.Props, _, _, err = p.makeNprops(bck, propsToUpdate)
 			if err != nil {
-				p.invalmsghdlr(w, r, err.Error())
-				return
+				erb := cmn.NewErrorBucketIsBusy(bck.Bck, "")
+				if !errors.As(err, &erb) {
+					p.invalmsghdlr(w, r, err.Error())
+					return
+				}
 			}
 		}
 		if err := p.createBucket(&msg, bck); err != nil {

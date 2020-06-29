@@ -286,9 +286,10 @@ func (p *proxyrunner) setBucketProps(msg *cmn.ActionMsg, bck *cluster.Bck,
 	cmn.Assert(present)
 	if msg.Action == cmn.ActSetBprops {
 		bck.Props = bprops
-		// make and validate new props
-		nprops, remirror, reec, err = p.makeNprops(bck, propsToUpdate)
-		cmn.AssertNoErr(err)
+		nprops, remirror, reec, err = p.makeNprops(bck, propsToUpdate) // under lock
+		if err != nil {
+			return
+		}
 	}
 	clone.set(bck, nprops)
 	p.owner.bmd.put(clone)
@@ -695,7 +696,6 @@ func (p *proxyrunner) undoUpdateCopies(msg *cmn.ActionMsg, bck *cluster.Bck, cop
 // make and validate nprops
 func (p *proxyrunner) makeNprops(bck *cluster.Bck,
 	propsToUpdate cmn.BucketPropsToUpdate) (nprops *cmn.BucketProps, remirror, reec bool, err error) {
-	const ers = "once enabled, EC configuration can be only disabled but cannot change"
 	var (
 		cfg    = cmn.GCO.Get()
 		bprops = bck.Props
@@ -704,7 +704,7 @@ func (p *proxyrunner) makeNprops(bck *cluster.Bck,
 	nprops.Apply(propsToUpdate)
 	if bprops.EC.Enabled && nprops.EC.Enabled {
 		if !reflect.DeepEqual(bprops.EC, nprops.EC) {
-			err = errors.New(ers)
+			err = fmt.Errorf("%s: once enabled, EC configuration can be only disabled but cannot change", p.si)
 			return
 		}
 	} else if nprops.EC.Enabled {
@@ -723,6 +723,11 @@ func (p *proxyrunner) makeNprops(bck *cluster.Bck,
 		remirror = true
 	} else if nprops.Mirror.Copies == 1 {
 		nprops.Mirror.Enabled = false
+	}
+	if remirror && reec {
+		// NOTE: cannot run make-n-copies and EC on the same bucket at the same time
+		err = cmn.NewErrorBucketIsBusy(bck.Bck, p.si.String())
+		return
 	}
 
 	targetCnt := p.owner.smap.Get().CountTargets()

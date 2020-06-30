@@ -709,10 +709,7 @@ type baseBckEntry struct {
 // nolint:unparam // `err` is set in different implementations
 func (b *baseBckEntry) preRenewHook(previousEntry bucketEntry) (keep bool, err error) {
 	e := previousEntry.Get()
-	if demandEntry, ok := e.(demand.XactDemand); ok {
-		demandEntry.Renew()
-		keep = true
-	}
+	_, keep = e.(demand.XactDemand)
 	return
 }
 

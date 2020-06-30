@@ -19,6 +19,7 @@ import (
 	"github.com/NVIDIA/aistore/housekeep/hk"
 	"github.com/NVIDIA/aistore/housekeep/lru"
 	"github.com/NVIDIA/aistore/stats"
+	"github.com/NVIDIA/aistore/xaction/demand"
 )
 
 const (
@@ -595,6 +596,10 @@ func (r *registry) renewBucketXaction(entry bucketEntry, bck *cluster.Bck) (buck
 	r.storeEntry(entry)
 	if running {
 		entry.postRenewHook(prevEntry)
+	} else if demandEntry, ok := entry.(demand.XactDemand); ok {
+		demandEntry.Renew()
+	} else if demandXact, ok := entry.Get().(demand.XactDemand); ok {
+		demandXact.Renew()
 	}
 	return entry, nil
 }
@@ -630,7 +635,12 @@ func (r *registry) renewGlobalXaction(entry globalEntry) (globalEntry, bool, err
 	r.storeEntry(entry)
 	if running {
 		entry.postRenewHook(prevEntry)
+	} else if demandEntry, ok := entry.(demand.XactDemand); ok {
+		demandEntry.Renew()
+	} else if demandXact, ok := entry.Get().(demand.XactDemand); ok {
+		demandXact.Renew()
 	}
+
 	return entry, false, nil
 }
 

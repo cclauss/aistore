@@ -17,7 +17,7 @@ import (
 	"github.com/NVIDIA/aistore/xaction/demand"
 )
 
-const idleTime = 5 * time.Second // TODO: overrides cmn/xaction.go very long timeout; need to make it configurable
+const idleTime = 45 * time.Second // TODO: overrides cmn/xaction.go very long timeout; make it configurable
 
 type (
 	XactPutLRepl struct {

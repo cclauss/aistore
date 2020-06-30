@@ -16,6 +16,7 @@ import (
 	"github.com/NVIDIA/aistore/fs"
 	"github.com/NVIDIA/aistore/housekeep/lru"
 	"github.com/NVIDIA/aistore/stats"
+	"github.com/NVIDIA/aistore/xaction/demand"
 )
 
 type globalEntry interface {
@@ -202,7 +203,7 @@ type (
 
 func (b *baseGlobalEntry) preRenewHook(previousEntry globalEntry) (done bool) {
 	e := previousEntry.Get()
-	if demandEntry, ok := e.(cmn.XactDemand); ok {
+	if demandEntry, ok := e.(demand.XactDemand); ok {
 		demandEntry.Renew()
 		done = true
 	}

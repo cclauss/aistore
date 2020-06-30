@@ -14,6 +14,7 @@ import (
 	"github.com/NVIDIA/aistore/cmn"
 	"github.com/NVIDIA/aistore/fs"
 	"github.com/NVIDIA/aistore/memsys"
+	"github.com/NVIDIA/aistore/xaction/demand"
 )
 
 const idleTime = 5 * time.Second // TODO: overrides cmn/xaction.go very long timeout; need to make it configurable
@@ -21,7 +22,7 @@ const idleTime = 5 * time.Second // TODO: overrides cmn/xaction.go very long tim
 type (
 	XactPutLRepl struct {
 		// implements cmn.Xact a cmn.Runner interfaces
-		cmn.XactDemandBase
+		demand.XactDemandBase
 		// runtime
 		workCh   chan *cluster.LOM
 		mpathers map[string]mpather
@@ -49,7 +50,7 @@ func RunXactPutLRepl(lom *cluster.LOM, slab *memsys.Slab) (r *XactPutLRepl, err 
 		mpathCount        = len(availablePaths)
 	)
 	r = &XactPutLRepl{
-		XactDemandBase: *cmn.NewXactDemandBase(cmn.ActPutCopies, lom.Bck().Bck, idleTime),
+		XactDemandBase: *demand.NewXactDemandBase(cmn.ActPutCopies, lom.Bck().Bck, idleTime),
 		slab:           slab,
 		mirror:         *lom.MirrorConf(),
 	}

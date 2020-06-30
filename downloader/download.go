@@ -16,6 +16,7 @@ import (
 	"github.com/NVIDIA/aistore/cmn"
 	"github.com/NVIDIA/aistore/fs"
 	"github.com/NVIDIA/aistore/stats"
+	"github.com/NVIDIA/aistore/xaction/demand"
 )
 
 // =============================== Summary ====================================
@@ -132,7 +133,7 @@ type (
 	// Downloader dispatches these requests to the corresponding jogger.
 	Downloader struct {
 		cmn.Named
-		cmn.XactDemandBase
+		demand.XactDemandBase
 
 		t          cluster.Target
 		mountpaths *fs.MountedFS
@@ -232,7 +233,7 @@ func (d *Downloader) ReqDisableMountpath(_ string)    {}
 
 func NewDownloader(t cluster.Target, statsT stats.Tracker, f *fs.MountedFS) (d *Downloader) {
 	downloader := &Downloader{
-		XactDemandBase: *cmn.NewXactDemandBase(cmn.Download, cmn.Bck{Provider: cmn.ProviderAIS}),
+		XactDemandBase: *demand.NewXactDemandBase(cmn.Download, cmn.Bck{Provider: cmn.ProviderAIS}),
 		t:              t,
 		statsT:         statsT,
 		mountpaths:     f,

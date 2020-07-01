@@ -138,7 +138,6 @@ func (r *XactPutLRepl) Repl(lom *cluster.LOM) (err error) {
 	return
 }
 
-func (r *XactPutLRepl) Stop(error) { r.Abort() } // call base method
 //
 // private methods
 //

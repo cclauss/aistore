@@ -5,13 +5,11 @@
 package demand
 
 import (
-	"math"
 	"time"
 
 	"github.com/NVIDIA/aistore/3rdparty/atomic"
 	"github.com/NVIDIA/aistore/cmn"
 	"github.com/NVIDIA/aistore/cmn/debug"
-	"github.com/NVIDIA/aistore/cmn/mono"
 	"github.com/NVIDIA/aistore/housekeep/hk"
 )
 
@@ -29,24 +27,23 @@ type (
 	XactDemand interface {
 		cmn.Xact
 		IdleTimer() <-chan struct{}
-		Renew()
 		IncPending()
 		DecPending()
 		SubPending(n int)
 	}
 
 	idleInfo struct {
-		uuid     string
-		dur      time.Duration
-		ticks    *cmn.StopCh
-		deadline atomic.Int64
+		dur   time.Duration
+		ticks *cmn.StopCh
+		cnt   int
 	}
 
 	XactDemandBase struct {
 		cmn.XactBase
 		pending atomic.Int64
-
-		idle idleInfo
+		active  atomic.Int64
+		hkname  string
+		idle    idleInfo
 	}
 )
 
@@ -63,63 +60,42 @@ func NewXactDemandBase(kind string, bck cmn.Bck, idleTimes ...time.Duration) *Xa
 	if len(idleTimes) != 0 {
 		idleTime = idleTimes[0]
 	}
-	uuid := cmn.GenUUID()
 	r := &XactDemandBase{
 		XactBase: *cmn.NewXactBaseWithBucket("", kind, bck),
+		hkname:   kind + "/" + cmn.GenUUID(),
 		idle: idleInfo{
-			uuid:  uuid,
 			dur:   idleTime,
 			ticks: cmn.NewStopCh(),
 		},
 	}
-	r.idle.deadline.Store(mono.NanoTime() + int64(idleTime))
 
-	hk.Housekeeper.Register(uuid, func() time.Duration {
-		// When deadline is met then we must send a tick (close channel).
-		if r.idle.deadline.Load() < mono.NanoTime() {
-			r.idle.ticks.Close()
+	hk.Housekeeper.Register(r.hkname, func() time.Duration {
+		active := r.active.Swap(0)
+		if r.Pending() > 0 || active > 0 {
+			r.idle.cnt = 0
+		} else if active == 0 {
+			r.idle.cnt++
+			if r.idle.cnt == 1 {
+				return r.idle.dur / 2 // wait another half interval to eliminate on/off "flickering"
+			}
+			r.idle.ticks.Close() // idle-ness confirmed - close channel
 		}
-		return idleTime
+		return r.idle.dur
 	})
 	return r
 }
 
 func (r *XactDemandBase) IdleTimer() <-chan struct{} { return r.idle.ticks.Listen() }
-
-func (r *XactDemandBase) Renew() {
-	pending := r.Pending()
-	debug.Assert(pending >= 0)
-	if pending == 0 {
-		// If there are no requests yet and renew was issued then we will wait
-		// `r.idle.dur` for some request to come.
-		r.startIdleTimer()
-	}
-}
-
-func (r *XactDemandBase) IncPending() {
-	if r.pending.Inc() == 1 {
-		// Set deadline to infinity so that we never met it. It will be reset
-		// back to `r.idle.dur` when number of pending will drop to 0.
-		r.idle.deadline.Store(math.MaxInt64)
-	}
-}
-
-func (r *XactDemandBase) DecPending() { r.SubPending(1) }
+func (r *XactDemandBase) Pending() int64             { return r.pending.Load() }
+func (r *XactDemandBase) IncPending()                { r.pending.Inc(); r.active.Inc() }
+func (r *XactDemandBase) DecPending()                { r.SubPending(1) }
 
 func (r *XactDemandBase) SubPending(n int) {
-	if r.pending.Sub(int64(n)) == 0 {
-		r.startIdleTimer()
-	}
+	r.pending.Sub(int64(n))
 	debug.Assert(r.Pending() >= 0)
 }
 
-func (r *XactDemandBase) Pending() int64 { return r.pending.Load() }
-
 func (r *XactDemandBase) Stop() {
-	hk.Housekeeper.Unregister(r.idle.uuid)
+	hk.Housekeeper.Unregister(r.hkname)
 	r.idle.ticks.Close()
-}
-
-func (r *XactDemandBase) startIdleTimer() {
-	r.idle.deadline.Store(mono.NanoTime() + int64(r.idle.dur))
 }
